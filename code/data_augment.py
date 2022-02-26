@@ -12,8 +12,8 @@ from pydap.cas.urs import setup_session
 import code.data as data
 
 
-def iter_dates():
-    for year in range(1980, 2022):
+def iter_dates(start_year=1980, end_year=2022):
+    for year in range(start_year, end_year):
         for month in range(1, 12 + 1):
             num_days = (datetime.date(year + (month // 12), (month % 12) + 1, 1) - datetime.date(year, month, 1)).days
             for day in range(1, num_days + 1):
@@ -159,7 +159,7 @@ def augment_data():
 
                 dataset.loc[len(dataset)] = entry
 
-        if not i % 10000:
+        if not i % 300:
             dataset.to_csv('data_augmented_checkpoint.csv', index=False)
 
     dataset.to_csv(f'data_augmented.csv', index=False)

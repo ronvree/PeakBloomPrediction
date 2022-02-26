@@ -98,11 +98,11 @@ if __name__ == '__main__':
     #
     # pass
 
-    # plot_bloom_doy()
+    plot_bloom_doy()
 
 
-    _df = pd.read_csv('data_augmented_sample.csv')
-
-    print(_df)
-    print(_df.columns)
-    print(len(_df))
+    # _df = data.get_dataset()
+    #
+    # print(_df)
+    # print(_df.columns)
+    # print(len(_df))

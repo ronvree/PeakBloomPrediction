@@ -1,6 +1,15 @@
 import numpy as np
 import pandas as pd
 
+import torch
+import torch.utils.data
+
+"""
+
+    Original Competition Data
+
+"""
+
 DATA_PATH = '../data'
 DATA_PATH_JAPAN = f'{DATA_PATH}/japan.csv'
 DATA_PATH_KYOTO = f'{DATA_PATH}/kyoto.csv'
@@ -149,37 +158,170 @@ def iter_data() -> iter:
     yield 'washingtondc', get_data_washingtondc()
 
 
+"""
+
+    Our dataset
+
+"""
+
+
+DATA_PATH_AUGMENTED = f'{DATA_PATH}/augmented'
+DATA_PATH_FULL = f'{DATA_PATH_AUGMENTED}/dataset.csv'
+
+
+def get_dataset() -> pd.DataFrame:
+    """
+
+    :return:
+    """
+
+    df = pd.read_csv(DATA_PATH_FULL)
+    return df
+
+
+class TemperatureDataset(torch.utils.data.Dataset):
+
+    def __init__(self):
+
+        dataset = get_dataset()  # TODO -- normalize the values!
+
+        dataset_original = pd.concat([df for _, df in list(iter_data())])
+        dataset_original.set_index(['year', 'location'], inplace=True)
+
+        self._bloom_data = dataset_original
+
+        # self._bloom_data.apply(lambda x: (x - self._bloom_data['lat'].mean()) / self._bloom_data['lat'].std(), columns=['lat'])
+        # self._bloom_data.apply(lambda x: (x - self._bloom_data['long'].mean()) / self._bloom_data['long'].std(), columns=['long'])
+        # self._bloom_data.apply(lambda x: (x - self._bloom_data['alt'].mean()) / self._bloom_data['alt'].std(), columns=['alt'])
+
+        data = []
+        for i, df in dataset.groupby(['year', 'location']):
+            df = df.loc[:, ['date', 'temp_max', 'temp_min', 'temp_mean']]
+            df.set_index('date', inplace=True)
+            df = df[~df.index.duplicated(keep='first')]  # TODO -- why are there duplicates??? remove in dataset!
+
+            if len(df) == 366:
+                df.drop(df.index[200], inplace=True)  # TODO -- remove which date?
+            if len(df) != 365:
+                print(len(df), i)
+                continue
+
+            data.append((i, df))
+
+        self._temperature_data = data
+
+    def __len__(self):
+        return len(self._temperature_data)
+
+    def __getitem__(self, index) -> dict:
+        assert 0 <= index < len(self)
+
+        i, df = self._temperature_data[index]
+
+        year, location = i
+
+        temp_max = torch.Tensor(df['temp_max'].values)
+        temp_min = torch.Tensor(df['temp_min'].values)
+        temp_mean = torch.Tensor(df['temp_mean'].values)
+
+        entry = self._bloom_data.loc[year, location] # TODO -- stop  doing things in batches!
+
+        bloom_doy = torch.Tensor([entry['bloom_doy'].values.mean()])  # TODO -- why are some bloom days stored twice??? -- remove .mean!!!
+        lat = torch.Tensor([entry['lat'].values.mean()])
+        lon = torch.Tensor([entry['long'].values.mean()])
+        alt = torch.Tensor([entry['alt'].values.mean()])
+
+        return {
+            'year': year,
+            'location': location,
+            'dates': df.index.values,
+            'temp_max': temp_max,
+            'temp_min': temp_min,
+            'temp_mean': temp_mean,
+            'bloom_doy': bloom_doy,
+            'lat': lat,
+            'lon': lon,
+            'alt': alt,
+        }
+
+    # def __getitem__(self, index) -> dict:
+    #     if torch.is_tensor(index):
+    #         index = index.tolist()
+    #
+    #     ixs = self._data.index.values[index]
+    #
+    #     items = self._data.iloc[index]
+    #
+    #     if isinstance(index, int):
+    #         year, location = ixs
+    #         date = items['date']
+    #         temp_max = torch.Tensor([items['temp_max']])
+    #         temp_min = torch.Tensor([items['temp_min']])
+    #         temp_mean = torch.Tensor([items['temp_mean']])
+    #     else:
+    #         year = [year for year, location in ixs]
+    #         location = [location for year, location in ixs]
+    #         date = items['date'].values
+    #         temp_max = torch.Tensor(items['temp_max'].values)
+    #         temp_min = torch.Tensor(items['temp_min'].values)
+    #         temp_mean = torch.Tensor(items['temp_mean'].values)
+    #
+    #     return {
+    #         'year': year,
+    #         'location': location,
+    #         'date': date,
+    #         'temp_max': temp_max,
+    #         'temp_min': temp_min,
+    #         'temp_mean': temp_mean,
+    #     }
+
+
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     import random
 
-    _df = get_data_meteoswiss()
-    print(_df)
-    print(_df.columns)
-    print(_df.dtypes)
-    print(f'Number of locations: {_df["location"].nunique()}')
-
-    # _df = _df.loc[_df['location'] == 'Japan/Wakkanai']
-    # _df = _df.loc[_df['location'] == _df.iloc[5000]['location']]
-
-    fig, ax = plt.subplots()
-
-    x = _df['year']
-    y = _df['bloom_doy']
-
-    colors = {location: np.random.rand(3) for location in set(_df['location'].values)}
-
-    ax.scatter(x, y, c=_df['location'].map(colors))
-
-    ax.set_xlabel('year')
-    ax.set_ylabel('bloom day of year')
+    # _df = get_data_meteoswiss()
+    # print(_df)
+    # print(_df.columns)
+    # print(_df.dtypes)
+    # print(f'Number of locations: {_df["location"].nunique()}')
+    #
+    # # _df = _df.loc[_df['location'] == 'Japan/Wakkanai']
+    # # _df = _df.loc[_df['location'] == _df.iloc[5000]['location']]
+    #
+    # fig, ax = plt.subplots()
+    #
+    # x = _df['year']
+    # y = _df['bloom_doy']
+    #
+    # colors = {location: np.random.rand(3) for location in set(_df['location'].values)}
+    #
+    # ax.scatter(x, y, c=_df['location'].map(colors))
+    #
+    # ax.set_xlabel('year')
+    # ax.set_ylabel('bloom day of year')
 
     # plt.show()
 
-    _df = get_status_intensity_datafield_descriptions()
+    # _df = get_dataset()
+    #
+    # print(_df)
+    # print(_df.columns)
 
-    print(_df)
-    print(_df.columns)
+    _ds = TemperatureDataset()
+
+    for _i in range(len(_ds)):
+        print(_ds[_i])
+    #     print(sorted(_ds[_i]['dates']))
+    #     # print(_ds[_i]['temp_max'].shape)
+        input()
+
+    # _dl = torch.utils.data.DataLoader(_ds)
+    #
+    # for _i in _dl:
+    #     print(_i)
+
+    print(_ds)
 
 
 

@@ -15,8 +15,8 @@ from pydap.cas.urs import setup_session
 import code.data as data
 
 
-def iter_dates():
-    for year in range(1980, 2022):
+def iter_dates(start_year=1980, end_year=2022):
+    for year in range(start_year, end_year):
         for month in range(1, 12 + 1):
             num_days = (datetime.date(year + (month // 12), (month % 12) + 1, 1) - datetime.date(year, month, 1)).days
             for day in range(1, num_days + 1):
@@ -25,7 +25,7 @@ def iter_dates():
 
 
 def iter_dates_urls():
-    for date in iter_dates():
+    for date in iter_dates(start_year=2020):
         year = date.year
         month = date.month
 
@@ -39,6 +39,10 @@ def iter_dates_urls():
             weird_number += 100
         if year >= 2011:
             weird_number += 100
+        if year == 2020 and month == 9:  # ???????
+            weird_number += 1
+        if year == 2021 and 9 >= month >= 6:
+            weird_number += 1
         url = f'https://goldsmr5.gesdisc.eosdis.nasa.gov/' \
               f'opendap/hyrax/MERRA2/M2I3NVASM.5.12.4/' \
               f'{year}/{month:02}/MERRA2_{weird_number}.inst3_3d_asm_Nv.{date.strftime("%Y%m%d")}.nc4'
@@ -91,10 +95,10 @@ def augment_data(num_workers=10):
 
     while not queue.empty():
         print(f'Queue status: {queue.qsize()}/{total_queue_size}. Time: {str(datetime.timedelta(seconds=time.time() - start_time))}')
-        time.sleep(60)
+        time.sleep(600)
         output_lock.acquire()
         if len(output) > 0:
-            pd.concat(output).to_csv('data_augmented_checkpoint.csv', index=False)
+            pd.concat(output).to_csv('../archive/data_augmented_checkpoint.csv', index=False)
         output_lock.release()
 
     queue.join()
@@ -212,4 +216,4 @@ class DownloadWorker(Thread):
 
 
 if __name__ == '__main__':
-    augment_data(num_workers=10)
+    augment_data(num_workers=20)
